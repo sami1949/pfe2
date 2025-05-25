@@ -1,0 +1,222 @@
+*{
+    padding: 0;
+    margin: 0;
+    color: #6B5B4E;
+    font-family: 'Playfair Display', sans-serif;
+    font-weight: 500;
+}
+
+body{
+    background: linear-gradient(135deg, #FDF7F2 0%, #F5E6D3 50%, #E2D1C3 100%);
+}
+
+.admin-container {
+    display: flex;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #FDF7F2 0%, #F5E6D3 50%, #E2D1C3 100%);
+    position: relative;
+}
+
+.menu{
+    background: linear-gradient(180deg, rgba(253, 247, 242, 0.95), rgba(245, 230, 211, 0.95));
+    backdrop-filter: blur(10px);
+    width: 60px;
+    height: 100vh;
+    padding: 20px;
+    overflow: hidden;
+    transition: .5s;
+    position: fixed;
+    z-index: 1000;
+    border-right: 1px solid rgba(200, 162, 123, 0.3);
+    box-shadow: 2px 0 10px rgba(107, 91, 78, 0.08);
+}
+
+.menu:hover{
+    width: 300px;
+}
+
+.main-content {
+    flex: 1;
+    padding-left: 360px;
+    transition: .5s;
+    background: linear-gradient(135deg, rgba(245, 230, 211, 0.5), rgba(226, 209, 195, 0.5));
+    min-height: 100vh;
+}
+
+.menu:not(:hover) + .main-content {
+    padding-left: 100px;
+}
+
+.content {
+    width: 100%;
+}
+
+ul{
+    list-style: none;
+    position: relative;
+    height: 95%;
+}
+
+ul li a {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 10px;
+    gap: 45px;
+    transition: all 0.3s ease;
+    color: #6B5B4E;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+ul li a:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(219, 178, 142, 0.1));
+    color: #D97706;
+}
+
+.log-out{
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+}
+
+.log-out form button{
+    background: linear-gradient(to right, #D97706, #B45309);
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 16px;
+    border-radius: 18px;
+    overflow: hidden;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.log-out form button p {
+    font-size: 1.1rem;
+    margin-right: 30px;
+    color: #FDF7F2;
+    font-weight: 600;
+}
+
+.log-out form button i{
+    margin-right: 30px;
+    font-size: 20px;
+    color: #FDF7F2;
+}
+
+.log-out form button:hover{
+    background: linear-gradient(to right, #B45309, #92400E);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(183, 121, 49, 0.2);
+}
+
+ul li a i {
+    font-size: 24px;
+    color: #6B5B4E;
+    transition: all 0.3s ease;
+}
+
+ul li a:hover i {
+    color: #D97706;
+    transform: scale(1.1);
+}
+
+.img-box{
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid #D97706;
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.img-box img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile{
+    display: flex;
+    align-items: center;
+    gap: 35px;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(219, 178, 142, 0.2);
+    transition: all 0.3s ease;
+}
+
+.profile:hover{
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(219, 178, 142, 0.1));
+    border-radius: 10px;
+}
+
+.profile:hover .img-box {
+    border-color: #B45309;
+    transform: scale(1.05);
+}
+
+.profile h2{
+    text-transform: capitalize;
+    font-size: 1.3rem;
+    letter-spacing: 1px;
+    color: #B68E65;
+    font-weight: 700;
+}
+
+.active{
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(219, 178, 142, 0.15));
+    color: #B45309 !important;
+}
+
+.active i, .active p {
+    color: #B45309;
+}
+
+.title{
+    background: linear-gradient(135deg, #D97706, #B45309);
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 10px;
+    margin: 10px 0;
+    box-shadow: 0 4px 12px rgba(183, 121, 49, 0.15);
+}
+
+.title p {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #FDF7F2;
+    letter-spacing: 0.5px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+ul li {
+    animation: fadeIn 0.3s ease-out forwards;
+    opacity: 0;
+    animation-delay: calc(var(--item-index) * 0.1s);
+}
+
+ul li a p {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
