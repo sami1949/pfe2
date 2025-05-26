@@ -13,8 +13,8 @@ class ProductControllerClient extends Controller
         $gender = $request->route('gender') ?? $request->query('gender', Product::GENDER_FEMME);
         $category = $request->route('category') ?? $request->query('category');
         $subcategory = $request->route('subcategory') ?? $request->query('subcategory');
-        $page = $request->query('page', 1);
-        $perPage = 6;
+        // Nombre de produits par page
+        $perPage = 9;
 
         // Get cart items from cookie
         $userId = auth()->id() ?? 'guest';
@@ -22,7 +22,7 @@ class ProductControllerClient extends Controller
         $cartItems = json_decode($request->cookie($cartKey), true) ?? [];
 
         // Debug log the incoming parameters
-        \Log::info('Product Filter Parameters:', [
+        \Illuminate\Support\Facades\Log::info('Product Filter Parameters:', [
             'gender' => $gender,
             'category' => $category,
             'subcategory' => $subcategory,
@@ -41,7 +41,7 @@ class ProductControllerClient extends Controller
             $query->where('category', $category);
             
             // Debug log the category filter
-            \Log::info('Category Filter:', [
+            \Illuminate\Support\Facades\Log::info('Category Filter:', [
                 'category' => $category,
                 'sql' => $query->toSql(),
                 'bindings' => $query->getBindings()
@@ -52,24 +52,19 @@ class ProductControllerClient extends Controller
             $query->where('subcategory', $subcategory);
             
             // Debug log the subcategory filter
-            \Log::info('Subcategory Filter:', [
+            \Illuminate\Support\Facades\Log::info('Subcategory Filter:', [
                 'subcategory' => $subcategory,
                 'sql' => $query->toSql(),
                 'bindings' => $query->getBindings()
             ]);
         }
 
-        // Get total count for pagination
-        $total = $query->count();
-
-        // Get paginated products
-        $products = $query->skip(($page - 1) * $perPage)
-                         ->take($perPage)
-                         ->get();
+        // Utiliser la pagination standard de Laravel
+        $products = $query->paginate($perPage)->withQueryString();
 
         // Debug log the results
-        \Log::info('Query Results:', [
-            'total_products' => $total,
+        \Illuminate\Support\Facades\Log::info('Query Results:', [
+            'total_products' => $products->total(),
             'products_returned' => $products->count(),
             'products' => $products->pluck('name', 'id')
         ]);
@@ -93,7 +88,7 @@ class ProductControllerClient extends Controller
             
             return response()->json([
                 'html' => $view,
-                'hasMore' => ($page * $perPage) < $total,
+                'hasMore' => $products->hasMorePages(),
                 'debug' => [
                     'count' => $products->count(),
                     'category' => $category,
@@ -109,8 +104,6 @@ class ProductControllerClient extends Controller
             'currentGender' => $gender,
             'categories' => $categories,
             'subcategories' => $subcategories,
-            'hasMore' => ($page * $perPage) < $total,
-            'currentPage' => $page,
             'cartItems' => $cartItems
         ]);
     }
