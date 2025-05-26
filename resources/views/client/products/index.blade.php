@@ -148,10 +148,136 @@
                 </div>
             </div>
             
+            <!-- Filter Section - Responsive Design -->
+            <div class="mb-10">
+                <div class="bg-white rounded-xl shadow-md p-4 md:p-6">
+                    <h3 class="text-lg md:text-xl font-medium text-[#886666] mb-4 text-center">Filtrer les produits</h3>
+                    
+                    <div id="filter-form">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <!-- Catégorie Filter -->
+                            <div class="filter-group">
+                                <label for="category" class="block text-sm font-medium text-[#886666] mb-2">Catégorie</label>
+                                <select id="category" class="w-full rounded-lg border-[#f0d8d8] focus:border-[#886666] focus:ring focus:ring-[#886666]/20 text-gray-700" onchange="toggleSubcategoryFilter(); filterProducts()">
+                                    <option value="">Toutes les catégories</option>
+                                    @foreach($categories as $categoryKey => $categoryName)
+                                        <option value="{{ $categoryKey }}" {{ request('category') == $categoryKey ? 'selected' : '' }}>{{ $categoryName }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            
+                            <!-- Sous-catégorie Filter (masqué par défaut) -->
+                            <div class="filter-group" id="subcategory-filter" style="display: none;">
+                                <label for="subcategory" class="block text-sm font-medium text-[#886666] mb-2">Sous-catégorie</label>
+                                <select id="subcategory" class="w-full rounded-lg border-[#f0d8d8] focus:border-[#886666] focus:ring focus:ring-[#886666]/20 text-gray-700" onchange="filterProducts()">
+                                    <option value="">Toutes les sous-catégories</option>
+                                    <!-- Sous-catégories dynamiques -->
+                                    @php
+                                        // Sous-catégories pour se_maquiller
+                                        $makeupSubcategories = [
+                                            \App\Models\Product::SUBCATEGORY_FACE => 'Visage',
+                                            \App\Models\Product::SUBCATEGORY_LIPS => 'Lèvres',
+                                            \App\Models\Product::SUBCATEGORY_EYES => 'Yeux',
+                                            \App\Models\Product::SUBCATEGORY_MAKEUP_TOOL => 'Outils de maquillage',
+                                        ];
+                                        
+                                        // Sous-catégories pour fragrance - Définies dynamiquement à partir des constantes du modèle Product
+                                        $fragranceSubcategories = [
+                                            \App\Models\Product::SUBCATEGORY_ALL_FRAGRANCE => 'Toutes les fragrances',
+                                            \App\Models\Product::SUBCATEGORY_PERFUMES => 'Parfums',
+                                            \App\Models\Product::SUBCATEGORY_MISTS => 'Brumes',
+                                            \App\Models\Product::SUBCATEGORY_SETS => 'Coffrets',
+                                        ];
+                                        
+                                        // Assurez-vous que toutes les sous-catégories sont bien définies dans le tableau $subcategories
+                                        if (!isset($subcategories[\App\Models\Product::CATEGORY_FRAGRANCE])) {
+                                            $subcategories[\App\Models\Product::CATEGORY_FRAGRANCE] = $fragranceSubcategories;
+                                        }
+                                    @endphp
+                                    
+                                    <!-- Sous-catégories pour se_maquiller -->
+                                    @foreach($makeupSubcategories as $value => $label)
+                                        <option value="{{ $value }}" data-parent="{{ \App\Models\Product::CATEGORY_MAQUILLAGE }}">{{ $label }}</option>
+                                    @endforeach
+                                    
+                                    <!-- Sous-catégories pour fragrance -->
+                                    @foreach($fragranceSubcategories as $value => $label)
+                                        <option value="{{ $value }}" data-parent="{{ \App\Models\Product::CATEGORY_FRAGRANCE }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            
+                            <!-- Prix Filter -->
+                            <div class="filter-group">
+                                <label for="price_range" class="block text-sm font-medium text-[#886666] mb-2">Prix</label>
+                                <select id="price_range" class="w-full rounded-lg border-[#f0d8d8] focus:border-[#886666] focus:ring focus:ring-[#886666]/20 text-gray-700" onchange="filterProducts()">
+                                    <option value="" {{ request('price_range') == '' ? 'selected' : '' }}>Tous les prix</option>
+                                    <option value="0-25" {{ request('price_range') == '0-25' ? 'selected' : '' }}>Moins de 25€</option>
+                                    <option value="25-50" {{ request('price_range') == '25-50' ? 'selected' : '' }}>25€ - 50€</option>
+                                    <option value="50-100" {{ request('price_range') == '50-100' ? 'selected' : '' }}>50€ - 100€</option>
+                                    <option value="100+" {{ request('price_range') == '100+' ? 'selected' : '' }}>Plus de 100€</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Marque Filter -->
+                            <div class="filter-group">
+                                <label for="brand" class="block text-sm font-medium text-[#886666] mb-2">Marque</label>
+                                <select id="brand" class="w-full rounded-lg border-[#f0d8d8] focus:border-[#886666] focus:ring focus:ring-[#886666]/20 text-gray-700" onchange="filterProducts()">
+                                    <option value="">Toutes les marques</option>
+                                    @php
+                                        // Récupérer toutes les marques disponibles directement depuis la base de données
+                                        $availableBrands = DB::table('products')
+                                            ->select('brand')
+                                            ->whereNotNull('brand')
+                                            ->where('brand', '!=', '')
+                                            ->distinct()
+                                            ->orderBy('brand', 'asc')
+                                            ->pluck('brand')
+                                            ->toArray();
+                                    @endphp
+                                    @foreach($availableBrands as $brandName)
+                                        <option value="{{ $brandName }}" {{ request('brand') == $brandName ? 'selected' : '' }}>{{ $brandName }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            
+                            <!-- Nom Filter -->
+                            <div class="filter-group">
+                                <label for="name_filter" class="block text-sm font-medium text-[#886666] mb-2">Nom</label>
+                                <div class="relative">
+                                    <input type="text" id="name_filter" placeholder="Rechercher par nom..." class="w-full rounded-lg border-[#f0d8d8] focus:border-[#886666] focus:ring focus:ring-[#886666]/20 text-gray-700 pr-10" oninput="filterProducts()">
+                                    <span class="absolute inset-y-0 right-0 px-3 flex items-center bg-transparent">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#886666]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Tri Filter -->
+                            <div class="filter-group">
+                                <label for="sort" class="block text-sm font-medium text-[#886666] mb-2">Trier par</label>
+                                <select id="sort" class="w-full rounded-lg border-[#f0d8d8] focus:border-[#886666] focus:ring focus:ring-[#886666]/20 text-gray-700" onchange="filterProducts()">
+                                    <option value="price-asc" {{ request('sort') == 'price-asc' ? 'selected' : '' }}>Prix croissant</option>
+                                    <option value="price-desc" {{ request('sort') == 'price-desc' ? 'selected' : '' }}>Prix décroissant</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Bouton pour réinitialiser les filtres -->
+                        <div class="mt-6 flex justify-center">
+                            <button type="button" id="reset-filters" class="px-4 py-2 bg-[#886666] text-white rounded-lg hover:bg-[#665555] transition-colors" onclick="resetFilters()">
+                                Réinitialiser les filtres
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Products Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mt-16" id="products-container">
                 @foreach($products as $product)
-                <div class="product-card">
+                <div class="product-card" data-brand="{{ $product->brand ?? 'Elegance Vibe' }}" data-category="{{ $product->category }}" data-subcategory="{{ $product->subcategory }}" data-price="{{ $product->price }}" data-name="{{ $product->name }}" data-id="{{ $product->id }}">
                     <div class="flip-card-inner">
                         <!-- Front of the card -->
                         <div class="flip-card-front">
@@ -302,7 +428,7 @@
                                                 <svg xmlns="http://www.w3.org/2000/svg" style="width: 1rem !important; height: 1rem !important; margin-right: 0.375rem !important;" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
                                                 </svg>
-                                                <span>retourrre</span>
+                                                <span>retour</span>
                                             </button>
                                         </div>
                                     </div>

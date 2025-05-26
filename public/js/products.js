@@ -16,7 +16,7 @@ function flipCard(button, toBack) {
     }
 }
 
-// Initialiser les cartes de produits
+// Initialiser les cartes de produits et les filtres
 function initializeProductCards() {
     // Ajouter des écouteurs d'événements aux boutons qui n'ont pas d'attribut onclick
     document.querySelectorAll('.info-button:not([onclick])').forEach(button => {
@@ -27,6 +27,23 @@ function initializeProductCards() {
         button.setAttribute('onclick', 'flipCard(this, false)');
     });
 }
+
+// Fonction principale d'initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialiser les cartes de produits
+    initializeProductCards();
+    
+    // Initialiser les filtres
+    initializeFilters();
+    
+    // Initialiser l'affichage des sous-catégories
+    toggleSubcategoryFilter();
+    
+    // Appliquer les filtres initiaux
+    filterProducts();
+    
+    console.log('Initialisation complète terminée');
+});
 
 function addToCart(productId, productName, productPrice, productImage = null) {
     // Check if user is authenticated - this will be handled by the Blade template
@@ -96,246 +113,623 @@ function showNotification(message) {
     }, 3000);
 }
 
+// Fonction pour gérer l'affichage du filtre de sous-catégorie
+function toggleSubcategoryFilter() {
+    const categorySelect = document.getElementById('category');
+    const subcategoryDiv = document.getElementById('subcategory-filter');
+    const subcategorySelect = document.getElementById('subcategory');
+    
+    if (!categorySelect || !subcategoryDiv || !subcategorySelect) {
+        console.log('Un ou plusieurs éléments de filtre manquants');
+        return;
+    }
+    
+    const selectedCategory = categorySelect.value;
+    console.log('Catégorie sélectionnée:', selectedCategory);
+    
+    // Afficher le filtre de sous-catégorie uniquement pour 'se_maquiller' et 'fragrance'
+    if (selectedCategory === 'se_maquiller' || selectedCategory === 'fragrance') {
+        subcategoryDiv.style.display = 'block';
+        
+        // Filtrer les options de sous-catégorie en fonction de la catégorie sélectionnée
+        const options = subcategorySelect.querySelectorAll('option');
+        let visibleOptions = 0;
+        
+        options.forEach(option => {
+            const parent = option.getAttribute('data-parent');
+            
+            // Toujours afficher l'option vide (Toutes les sous-catégories)
+            if (option.value === '') {
+                option.style.display = '';
+                visibleOptions++;
+                return;
+            }
+            
+            // Comparer en ignorant la casse pour éviter les problèmes de majuscules/minuscules
+            const shouldDisplay = !parent || (parent && parent.toLowerCase() === selectedCategory.toLowerCase());
+            option.style.display = shouldDisplay ? '' : 'none';
+            
+            if (shouldDisplay) visibleOptions++;
+        });
+        
+        console.log(`Nombre d'options visibles: ${visibleOptions}`);
+        
+        // Réinitialiser la sélection de sous-catégorie
+        subcategorySelect.value = '';
+        
+        // Si la catégorie est 'fragrance', sélectionner automatiquement 'all_fragrance'
+        if (selectedCategory === 'fragrance') {
+            // Trouver l'option 'all_fragrance'
+            const allFragranceOption = Array.from(subcategorySelect.options).find(opt => opt.value === 'all_fragrance');
+            if (allFragranceOption) {
+                subcategorySelect.value = 'all_fragrance';
+                console.log('Sélection automatique de la sous-catégorie all_fragrance');
+            }
+        }
+        
+        console.log('Filtre de sous-catégorie affiché pour la catégorie:', selectedCategory);
+    } else {
+        // Masquer le filtre de sous-catégorie
+        subcategoryDiv.style.display = 'none';
+        subcategorySelect.value = '';
+        console.log('Filtre de sous-catégorie masqué');
+    }
+    
+    // Appliquer les filtres après avoir changé la sous-catégorie
+    filterProducts();
+}
+
+// Fonction pour sauvegarder les filtres dans le localStorage
+function saveFilters() {
+    const priceRange = document.getElementById('price_range') ? document.getElementById('price_range').value : '';
+    const brand = document.getElementById('brand') ? document.getElementById('brand').value : '';
+    const nameFilter = document.getElementById('name_filter') ? document.getElementById('name_filter').value : '';
+    const sortOption = document.getElementById('sort') ? document.getElementById('sort').value : 'price-asc';
+    const category = document.getElementById('category') ? document.getElementById('category').value : '';
+    const subcategory = document.getElementById('subcategory') ? document.getElementById('subcategory').value : '';
+    
+    const filters = {
+        priceRange,
+        brand,
+        nameFilter,
+        sortOption,
+        category,
+        subcategory
+    };
+    
+    localStorage.setItem('productFilters', JSON.stringify(filters));
+    console.log('Filtres sauvegardés:', filters);
+}
+
+// Fonction pour restaurer les filtres depuis le localStorage
+function restoreFilters() {
+    const savedFilters = localStorage.getItem('productFilters');
+    if (!savedFilters) return;
+    
+    const filters = JSON.parse(savedFilters);
+    console.log('Restauration des filtres:', filters);
+    
+    // Appliquer les filtres sauvegardés aux éléments du formulaire
+    if (document.getElementById('price_range')) document.getElementById('price_range').value = filters.priceRange || '';
+    if (document.getElementById('brand')) document.getElementById('brand').value = filters.brand || '';
+    if (document.getElementById('name_filter')) document.getElementById('name_filter').value = filters.nameFilter || '';
+    if (document.getElementById('sort')) document.getElementById('sort').value = filters.sortOption || 'price-asc';
+    
+    // Restaurer la catégorie et la sous-catégorie
+    if (document.getElementById('category')) {
+        document.getElementById('category').value = filters.category || '';
+        // Déclencher l'affichage des sous-catégories si nécessaire
+        if (filters.category === 'fragrance' || filters.category === 'se_maquiller') {
+            toggleSubcategoryFilter();
+            // Restaurer la sous-catégorie après un court délai pour s'assurer que toggleSubcategoryFilter a terminé
+            setTimeout(() => {
+                if (document.getElementById('subcategory')) {
+                    document.getElementById('subcategory').value = filters.subcategory || '';
+                }
+                // Appliquer les filtres restaurés
+                filterProducts();
+            }, 100);
+        } else {
+            // Appliquer les filtres restaurés immédiatement si pas de sous-catégorie
+            filterProducts();
+        }
+    }
+}
+
+// Fonction globale pour filtrer les produits sans rafraîchir la page
+function filterProducts() {
+    console.log('Application des filtres...');
+    
+    // Récupérer les valeurs des filtres
+    const priceRange = document.getElementById('price_range') ? document.getElementById('price_range').value : '';
+    const brand = document.getElementById('brand') ? document.getElementById('brand').value : '';
+    const nameFilter = document.getElementById('name_filter') ? document.getElementById('name_filter').value.toLowerCase() : '';
+    const sortOption = document.getElementById('sort') ? document.getElementById('sort').value : 'price-asc';
+    const category = document.getElementById('category') ? document.getElementById('category').value : '';
+    let subcategory = document.getElementById('subcategory') ? document.getElementById('subcategory').value : '';
+    
+    // Sauvegarder les filtres actuels pour les restaurer après changement de page
+    saveFilters();
+    
+    console.log('Filtres sélectionnés - Catégorie:', category, '| Sous-catégorie:', subcategory, '| Prix:', priceRange, '| Marque:', brand, '| Nom:', nameFilter, '| Tri:', sortOption);
+    
+    // Récupérer tous les produits
+    const products = document.querySelectorAll('.product-card');
+    const productsContainer = document.getElementById('products-container');
+    
+    if (!productsContainer || products.length === 0) {
+        console.log('Aucun produit trouvé ou conteneur manquant');
+        return; // Si aucun produit n'est trouvé, ne rien faire
+    }
+    
+    // Débogage: Afficher tous les produits disponibles
+    console.log('=== Début débogage de tous les produits ===');
+    products.forEach(product => {
+        const name = product.getAttribute('data-name') || 'Sans nom';
+        const cat = product.getAttribute('data-category');
+        const subcat = product.getAttribute('data-subcategory');
+        const price = product.getAttribute('data-price');
+        console.log(`Produit: ${name} | Catégorie: ${cat} | Sous-catégorie: ${subcat} | Prix: ${price}`);
+    });
+    console.log('=== Fin débogage de tous les produits ===');
+    console.log(`Nombre total de produits avant filtrage: ${products.length}`);
+    
+    // Si la catégorie est 'fragrance' et qu'aucune sous-catégorie n'est sélectionnée,
+    // sélectionner automatiquement 'all_fragrance' pour afficher tous les produits de fragrance
+    if (category === 'fragrance' && !subcategory) {
+        const subcategorySelect = document.getElementById('subcategory');
+        if (subcategorySelect) {
+            subcategorySelect.value = 'all_fragrance';
+            subcategory = 'all_fragrance';
+            console.log('Sélection automatique de la sous-catégorie all_fragrance');
+        }
+    }
+    
+    // Toujours commencer avec tous les produits pour chaque filtrage
+    let filteredProducts = Array.from(products);
+    
+    // Filtrer par catégorie
+    if (category) {
+        console.log('Filtrage par catégorie:', category);
+        
+        // Débogage: Afficher les catégories de tous les produits avant filtrage
+        console.log('=== Début débogage des catégories ===');
+        products.forEach(product => {
+            const name = product.getAttribute('data-name') || 'Sans nom';
+            const cat = product.getAttribute('data-category');
+            const subcat = product.getAttribute('data-subcategory');
+            console.log(`Produit: ${name} | Catégorie: ${cat} | Sous-catégorie: ${subcat}`);
+        });
+        console.log('=== Fin débogage des catégories ===');
+        
+        // IMPORTANT: Repartir de TOUS les produits pour le filtrage par catégorie
+        // Cela garantit que nous n'avons pas déjà filtré des produits qui devraient être inclus
+        filteredProducts = Array.from(products).filter(product => {
+            // Récupérer la catégorie du produit depuis l'attribut data-category
+            const productCategory = product.getAttribute('data-category');
+            const productName = product.getAttribute('data-name') || 'Sans nom';
+            
+            // Vérifier si la catégorie correspond (insensible à la casse)
+            const match = productCategory && category && 
+                         productCategory.toLowerCase() === category.toLowerCase();
+            console.log(`Produit: ${productName} | Catégorie: ${productCategory} === ${category}? ${match}`);
+            
+            return match;
+        });
+        
+        console.log(`Nombre de produits après filtrage par catégorie '${category}': ${filteredProducts.length}`);
+        
+        // Si la catégorie est 'fragrance' et qu'aucune sous-catégorie n'est sélectionnée,
+        // sélectionner automatiquement 'all_fragrance' pour afficher tous les produits de fragrance
+        if (category === 'fragrance' && !subcategory) {
+            const subcategorySelect = document.getElementById('subcategory');
+            if (subcategorySelect) {
+                subcategorySelect.value = 'all_fragrance';
+                subcategory = 'all_fragrance';
+                console.log('Sélection automatique de la sous-catégorie all_fragrance');
+            }
+        }
+    }
+    
+    // Filtrer par sous-catégorie
+    if (subcategory) {
+        console.log('Filtrage par sous-catégorie:', subcategory);
+        
+        // Si aucune sous-catégorie n'est sélectionnée, afficher tous les produits filtrés par catégorie
+        if (subcategory === '') {
+            console.log('Aucune sous-catégorie sélectionnée, affichage de tous les produits filtrés par catégorie');
+            return;
+        }
+        
+        // Cas spécial pour 'all_fragrance' - accepter tous les produits de la catégorie 'fragrance'
+        if (subcategory === 'all_fragrance') {
+            console.log('Filtrage spécial pour all_fragrance - afficher tous les produits de la catégorie fragrance');
+            
+            // IMPORTANT: Repartir de TOUS les produits, pas seulement ceux déjà filtrés
+            // C'est crucial pour afficher les 4 produits de la catégorie fragrance
+            filteredProducts = Array.from(products).filter(product => {
+                const productCategory = product.getAttribute('data-category');
+                const productName = product.getAttribute('data-name') || 'Sans nom';
+                
+                // Débogage détaillé pour comprendre pourquoi les produits ne s'affichent pas
+                console.log(`Débogage all_fragrance: ${productName} | Catégorie: ${productCategory}`);
+                
+                // Vérifier si le produit est dans la catégorie 'fragrance'
+                // Utiliser une comparaison insensible à la casse pour éviter les problèmes de majuscules/minuscules
+                const isFragrance = productCategory && productCategory.toLowerCase() === 'fragrance';
+                console.log(`${productName}: Est dans la catégorie fragrance? ${isFragrance}`);
+                return isFragrance;
+            });
+            
+            console.log(`Nombre de produits après filtrage all_fragrance: ${filteredProducts.length}`);
+        } else {
+            // Pour les autres sous-catégories
+            // IMPORTANT: Pour les sous-catégories de fragrance, repartir de tous les produits
+            // pour éviter les problèmes de filtrage
+            const fragranceSubcategories = ['perfumes', 'mists', 'sets'];
+            if (fragranceSubcategories.includes(subcategory)) {
+                // Pour les sous-catégories de fragrance, filtrer directement depuis tous les produits
+                filteredProducts = Array.from(products).filter(product => {
+                    const productCategory = product.getAttribute('data-category');
+                    const productSubcategory = product.getAttribute('data-subcategory');
+                    const productName = product.getAttribute('data-name') || 'Sans nom';
+                    
+                    // Débogage détaillé pour comprendre pourquoi les produits ne s'affichent pas
+                    console.log(`Débogage sous-catégorie fragrance: ${productName} | Catégorie: ${productCategory} | Sous-catégorie: ${productSubcategory} | Filtre: ${subcategory}`);
+                    
+                    // Vérifier d'abord que le produit est dans la catégorie 'fragrance'
+                    if (productCategory !== 'fragrance') {
+                        return false;
+                    }
+                    
+                    // Cas spécial pour les parfums (perfumes)
+                    if (subcategory === 'perfumes') {
+                        // Si le produit a la sous-catégorie 'perfumes' OU si son nom contient 'Parfum' OU 'Eau de Parfum'
+                        const isPerfume = (productSubcategory && productSubcategory.toLowerCase() === 'perfumes') || 
+                                         (productName && productName.toLowerCase().includes('parfum')) ||
+                                         (productName && productName.toLowerCase().includes('eau de parfum'));
+                        console.log(`${productName}: Est un parfum? ${isPerfume}`);
+                        return isPerfume;
+                    }
+                    
+                    // Cas spécial pour les brumes (mists)
+                    if (subcategory === 'mists') {
+                        // Si le produit a la sous-catégorie 'mists' OU si son nom contient 'Brume' OU 'Mist'
+                        const isMist = (productSubcategory && productSubcategory.toLowerCase() === 'mists') || 
+                                      (productName && productName.toLowerCase().includes('brume')) ||
+                                      (productName && productName.toLowerCase().includes('mist'));
+                        console.log(`${productName}: Est une brume? ${isMist}`);
+                        return isMist;
+                    }
+                    
+                    // Cas spécial pour les coffrets (sets)
+                    if (subcategory === 'sets') {
+                        // Si le produit a la sous-catégorie 'sets' OU si son nom contient 'Coffret' OU 'Set'
+                        const isSet = (productSubcategory && productSubcategory.toLowerCase() === 'sets') || 
+                                     (productName && productName.toLowerCase().includes('coffret')) ||
+                                     (productName && productName.toLowerCase().includes('set'));
+                        console.log(`${productName}: Est un coffret? ${isSet}`);
+                        return isSet;
+                    }
+                    
+                    // Si le produit n'a pas de sous-catégorie spécifiée mais est dans la catégorie 'fragrance',
+                    // l'accepter pour toutes les sous-catégories de fragrance
+                    if (!productSubcategory) {
+                        console.log(`${productName}: Produit de fragrance sans sous-catégorie spécifiée, accepté`);
+                        return true;
+                    }
+                    
+                    // Accepter le produit si sa sous-catégorie correspond à celle du filtre
+                    const match = productSubcategory === subcategory;
+                    console.log(`${productName}: Sous-catégorie ${productSubcategory} === ${subcategory}? ${match}`);
+                    return match;
+                });
+            } else {
+                // Pour les autres sous-catégories (se_maquiller), filtrer normalement
+                filteredProducts = filteredProducts.filter(product => {
+                    const productSubcategory = product.getAttribute('data-subcategory');
+                    const productName = product.getAttribute('data-name') || 'Sans nom';
+                    
+                    const match = productSubcategory === subcategory;
+                    console.log(`${productName}: Sous-catégorie ${productSubcategory} === ${subcategory}? ${match}`);
+                    return match;
+                });
+            }
+            
+            console.log(`Nombre de produits après filtrage par sous-catégorie '${subcategory}': ${filteredProducts.length}`);
+        }
+    }
+    
+    // Filtrer par prix
+    if (priceRange) {
+        console.log('Filtrage par prix:', priceRange);
+        
+        let minPrice = 0;
+        let maxPrice = Infinity;
+        
+        // Définir les plages de prix en fonction de l'option sélectionnée
+        if (priceRange === '0-25') {
+            maxPrice = 25;
+        } else if (priceRange === '25-50') {
+            minPrice = 25;
+            maxPrice = 50;
+        } else if (priceRange === '50-100') {
+            minPrice = 50;
+            maxPrice = 100;
+        } else if (priceRange === '100+') {
+            minPrice = 100;
+        }
+        
+        console.log(`Filtrage par plage de prix: ${minPrice} - ${maxPrice}`);
+        
+        // Débogage: Afficher les prix de tous les produits filtrés
+        console.log('=== Début débogage des prix ===');
+        filteredProducts.forEach(product => {
+            const name = product.getAttribute('data-name') || 'Sans nom';
+            const price = parseFloat(product.getAttribute('data-price')) || 0;
+            console.log(`Produit: ${name} | Prix: ${price}`);
+        });
+        console.log('=== Fin débogage des prix ===');
+        
+        // Filtrer les produits par prix
+        filteredProducts = filteredProducts.filter(product => {
+            const price = parseFloat(product.getAttribute('data-price')) || 0;
+            const inRange = price >= minPrice && price <= maxPrice;
+            const name = product.getAttribute('data-name') || 'Sans nom';
+            console.log(`Produit: ${name} | Prix: ${price} | Dans la plage ${minPrice}-${maxPrice}? ${inRange}`);
+            return inRange;
+        });
+        
+        console.log('Produits après filtrage par prix:', filteredProducts.length);
+    }
+
+    // Filtrer par marque
+    if (brand) {
+        console.log('Filtrage par marque:', brand);
+        
+        filteredProducts = filteredProducts.filter(product => {
+            const productBrand = product.getAttribute('data-brand');
+            const name = product.getAttribute('data-name') || 'Sans nom';
+            const match = productBrand === brand;
+            console.log(`Produit: ${name} | Marque: ${productBrand} === ${brand}? ${match}`);
+            return match;
+        });
+        
+        console.log('Produits après filtrage par marque:', filteredProducts.length);
+    }
+    
+    // Filtrer par nom
+    if (nameFilter) {
+        console.log('Filtrage par nom:', nameFilter);
+        
+        filteredProducts = filteredProducts.filter(product => {
+            // Récupérer tous les textes dans la carte produit pour une recherche plus large
+            const allText = product.textContent.toLowerCase();
+            
+            // Recherche directe dans tout le texte de la carte
+            if (allText.includes(nameFilter)) {
+                return true;
+            }
+            
+            // Recherche spécifique dans les éléments de nom
+            const nameElements = [
+                product.querySelector('.product-name'),
+                product.querySelector('h3'),
+                product.querySelector('.flip-card-front h3')
+            ];
+            
+            for (const element of nameElements) {
+                if (element) {
+                    const productName = element.textContent.trim().toLowerCase();
+                    if (productName.includes(nameFilter)) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        });
+        console.log('Produits filtrés:', filteredProducts.length);
+    }
+    
+    // Version simplifiée et optimisée du tri par prix
+    console.log('Option de tri sélectionnée:', sortOption);
+    
+    // Tri par prix (croissant ou décroissant)
+    if (sortOption === 'price-asc' || sortOption === 'price-desc') {
+        console.log('Début du tri par prix:', sortOption);
+        
+        // Débogage: Afficher les prix de tous les produits
+        console.log('=== Début débogage des prix ===');
+        filteredProducts.forEach(product => {
+            const name = product.querySelector('.product-name')?.textContent || 'Sans nom';
+            const price = product.getAttribute('data-price');
+            console.log(`Produit: ${name} | Prix (attribut): ${price}`);
+        });
+        console.log('=== Fin débogage des prix ===');
+        
+        // Convertir en tableau pour pouvoir trier
+        filteredProducts = Array.from(filteredProducts);
+        
+        // Tri direct par prix
+        filteredProducts.sort((a, b) => {
+            // Extraire les prix directement depuis l'attribut data-price
+            const priceA = parseFloat(a.getAttribute('data-price')) || 0;
+            const priceB = parseFloat(b.getAttribute('data-price')) || 0;
+            
+            // Appliquer le tri selon l'option sélectionnée
+    
+    // Appliquer le tri selon l'option sélectionnée
+    if (sortOption === 'price-asc') {
+        console.log(`Tri croissant: ${priceA} vs ${priceB}`);
+        return priceA - priceB; // Prix croissant
+    } else {
+        console.log(`Tri décroissant: ${priceB} vs ${priceA}`);
+        return priceB - priceA; // Prix décroissant
+    }
+});
+
+console.log(`Tri par prix ${sortOption} terminé. Nombre de produits: ${filteredProducts.length}`);
+}
+
+console.log('Produits triés:', filteredProducts.length);
+
+// Afficher les produits filtrés
+updateProductsDisplay(filteredProducts);
+}
+
+// Fonction pour afficher ou masquer les produits filtrés
+function updateProductsDisplay(filteredProducts) {
+    const products = document.querySelectorAll('.product-card');
+    const productsContainer = document.getElementById('products-container');
+    const noResultsMessage = document.getElementById('no-results-message');
+    
+    if (!productsContainer) {
+        console.error('Conteneur de produits non trouvé');
+        return;
+    }
+    
+    // Débogage: afficher tous les produits avant filtrage
+    console.log('=== Début débogage des produits avant filtrage ===');
+    products.forEach(product => {
+        const name = product.getAttribute('data-name') || 'Sans nom';
+        const category = product.getAttribute('data-category');
+        const subcategory = product.getAttribute('data-subcategory');
+        console.log(`Produit: ${name} | Catégorie: ${category} | Sous-catégorie: ${subcategory}`);
+    });
+    console.log('=== Fin débogage des produits avant filtrage ===');
+    
+    // Débogage: afficher tous les produits filtrés
+    console.log('=== Début débogage des produits filtrés ===');
+    filteredProducts.forEach(product => {
+        const name = product.getAttribute('data-name') || 'Sans nom';
+        const category = product.getAttribute('data-category');
+        const subcategory = product.getAttribute('data-subcategory');
+        console.log(`Produit filtré: ${name} | Catégorie: ${category} | Sous-catégorie: ${subcategory}`);
+    });
+    console.log('=== Fin débogage des produits filtrés ===');
+    
+    // Masquer tous les produits d'abord
+    products.forEach(product => {
+        product.style.display = 'none';
+    });
+    
+    // Afficher uniquement les produits filtrés
+    filteredProducts.forEach(product => {
+        product.style.display = 'block';
+    });
+    
+    // Afficher un message si aucun produit ne correspond aux filtres
+    if (filteredProducts.length === 0) {
+        if (noResultsMessage) {
+            noResultsMessage.style.display = 'block';
+        } else {
+            // Créer un message si nécessaire
+            const message = document.createElement('div');
+            message.id = 'no-results-message';
+            message.className = 'col-span-full text-center py-8 text-gray-500';
+            message.innerHTML = 'Aucun produit ne correspond à vos critères de filtrage.';
+            productsContainer.appendChild(message);
+        }
+    } else if (noResultsMessage) {
+        noResultsMessage.style.display = 'none';
+    }
+    
+    console.log(`Affichage de ${filteredProducts.length} produits sur ${products.length} au total`);
+}
+
+// Fonction pour réinitialiser tous les filtres
+function resetFilters() {
+    console.log('Réinitialisation des filtres...');
+    
+    // Réinitialiser les valeurs des filtres
+    if (document.getElementById('price_range')) document.getElementById('price_range').value = '';
+    if (document.getElementById('brand')) document.getElementById('brand').value = '';
+    if (document.getElementById('name_filter')) document.getElementById('name_filter').value = '';
+    if (document.getElementById('sort')) document.getElementById('sort').value = 'price-asc';
+    if (document.getElementById('category')) document.getElementById('category').value = '';
+    if (document.getElementById('subcategory')) document.getElementById('subcategory').value = '';
+    
+    // Masquer le filtre de sous-catégorie
+    const subcategoryFilter = document.getElementById('subcategory-filter');
+    if (subcategoryFilter) subcategoryFilter.style.display = 'none';
+    
+    // Supprimer les filtres sauvegardés dans le localStorage
+    localStorage.removeItem('productFilters');
+    
+    // Appliquer les filtres réinitialisés
+    filterProducts();
+    
+    console.log('Filtres réinitialisés');
+}
+
+// Initialiser les filtres au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initialisation des filtres...');
+    
+    // Restaurer les filtres sauvegardés
+    restoreFilters();
+    
+    // Ajouter des écouteurs d'événements pour les liens de pagination
+    const paginationLinks = document.querySelectorAll('.pagination a');
+    paginationLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            // Sauvegarder les filtres avant de changer de page
+            saveFilters();
+        });
+    });
+    
+    // Ajouter des écouteurs d'événements pour les boutons de pagination (Précédent/Suivant)
+    const paginationButtons = document.querySelectorAll('.pagination button');
+    paginationButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Sauvegarder les filtres avant de changer de page
+            saveFilters();
+        });
+    });
+    
+    // Ajouter un écouteur d'événement pour le chargement de la page
+    window.addEventListener('pageshow', function(event) {
+        // Si la page est chargée depuis le cache (navigation avec bouton retour)
+        if (event.persisted) {
+            console.log('Page chargée depuis le cache, restauration des filtres...');
+            restoreFilters();
+        }
+    });
+});
+
+// Fonction pour appliquer les styles responsifs
+function applyResponsiveStyles() {
+    const isMobile = window.innerWidth < 768;
+    const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024;
+    const isDesktop = window.innerWidth >= 1024;
+    
+    // Appliquer les styles spécifiques aux boutons 'Retour'
+    document.querySelectorAll('.back-button').forEach(button => {
+        button.classList.add('px-3', 'py-2', 'rounded-lg');
+        // Appliquer le style spécifique demandé par l'utilisateur
+        button.style.padding = '0.75rem 1rem';
+        button.style.borderRadius = '0.5rem';
+        // Positionner le bouton à droite
+        button.parentElement.classList.add('flex', 'justify-end');
+    });
+}
+
 // Script pour appliquer les styles après chargement des nouveaux produits
 document.addEventListener('DOMContentLoaded', function() {
     // Fonction pour appliquer les styles corrects aux cartes
     function applyCardStyles() {
-        // Fonction pour détecter les changements de taille d'écran
-        function handleResize() {
-            applyResponsiveStyles();
-        }
-        
-        // Ajouter un écouteur d'événement pour le redimensionnement de la fenêtre
-        window.addEventListener('resize', handleResize);
-        
-        // Fonction pour appliquer les styles responsifs
-        function applyResponsiveStyles() {
-            const isMobile = window.innerWidth <= 768;
-            const isSmallMobile = window.innerWidth <= 640;
-            
-            // Appliquer les styles aux images sur mobile
-            if (isMobile) {
-                document.querySelectorAll('.product-image-container').forEach(container => {
-                    container.style.overflow = 'hidden';
-                    container.style.borderRadius = '0.5rem';
-                });
-                
-                document.querySelectorAll('.product-image').forEach(img => {
-                    img.style.objectFit = 'cover';
-                    img.style.transform = 'scale(1)';
-                    img.style.transition = 'transform 0.5s ease-in-out';
-                });
-            }
-            
-            document.querySelectorAll('.flip-card-back').forEach(cardBack => {
-                cardBack.style.padding = isSmallMobile ? '0.5rem' : (isMobile ? '0.75rem' : '1rem');
-                
-                const actionButtons = cardBack.querySelector('.action-buttons');
-                if (actionButtons) {
-                    actionButtons.style.flexDirection = isMobile ? 'column' : 'row';
-                    actionButtons.style.gap = isMobile ? '0.5rem' : '0.75rem';
-                }
-                
-                const backButton = cardBack.querySelector('.back-button');
-                if (backButton) {
-                    backButton.style.width = isMobile ? '100%' : 'auto';
-                    backButton.style.margin = isMobile ? '0' : '0 0.5rem 0 0';
-                }
-                
-                const addToCartButton = cardBack.querySelector('.add-to-cart-button');
-                if (addToCartButton) {
-                    addToCartButton.style.width = isMobile ? '100%' : 'auto';
-                    addToCartButton.style.margin = isMobile ? '0' : '0 0 0 0.5rem';
-                }
-            });
-            
-            document.querySelectorAll('.detail-item').forEach(item => {
-                item.style.padding = isSmallMobile ? '0.4rem 0.5rem' : (isMobile ? '0.5rem 0.75rem' : '0.75rem 1rem');
-                item.style.marginBottom = isSmallMobile ? '0.4rem' : (isMobile ? '0.5rem' : '0.75rem');
-                
-                const detailText = item.querySelector('.detail-text');
-                if (detailText) {
-                    detailText.style.fontSize = isSmallMobile ? '0.8rem' : (isMobile ? '0.85rem' : '0.95rem');
-                }
-            });
-        }
-        
-        // Appliquer les styles responsifs immédiatement
+        // Appliquer les styles responsifs
         applyResponsiveStyles();
-        
-        // Appliquer les styles aux versos des cartes
-        document.querySelectorAll('.flip-card-back').forEach(cardBack => {
-            // Styles de base pour le verso de la carte
-            cardBack.style.backgroundColor = 'white';
-            cardBack.style.transform = 'rotateY(180deg)';
-            cardBack.style.border = '1px solid rgba(255, 117, 15, 0.1)';
-            cardBack.style.display = 'flex';
-            cardBack.style.flexDirection = 'column';
-            cardBack.style.position = 'absolute';
-            cardBack.style.width = '100%';
-            cardBack.style.height = '100%';
-            cardBack.style.backfaceVisibility = 'hidden';
-            cardBack.style.WebkitBackfaceVisibility = 'hidden';
-            cardBack.style.borderRadius = '1rem';
-            cardBack.style.overflow = 'hidden';
-            cardBack.style.boxShadow = '0 5px 15px rgba(255, 117, 15, 0.05)';
-            cardBack.style.padding = '1rem';
-            
-            // Appliquer les styles responsifs en fonction de la taille de l'écran
-            if (window.innerWidth <= 768) {
-                cardBack.style.padding = '0.75rem';
-            }
-            if (window.innerWidth <= 640) {
-                cardBack.style.padding = '0.5rem';
-            }
-            
-            // Appliquer les styles personnalisés au contenu du verso
-            const cardBackInner = cardBack.querySelector('div');
-            if (cardBackInner) {
-                cardBackInner.style.backgroundColor = 'white';
-                cardBackInner.style.padding = '0.5rem';
-                cardBackInner.style.borderRadius = '0.5rem';
-            }
-            
-            // Style du nom du produit au verso
-            const productNameBack = cardBack.querySelector('.product-name-back');
-            if (productNameBack) {
-                productNameBack.style.textAlign = 'left';
-                productNameBack.style.fontSize = '1.3rem';
-                productNameBack.style.color = '#333';
-                productNameBack.style.fontWeight = '600';
-                productNameBack.style.marginBottom = '0.75rem';
-            }
-            
-            // Style de la section détails
-            const productDetails = cardBack.querySelector('.product-details');
-            if (productDetails) {
-                productDetails.style.textAlign = 'left';
-                productDetails.classList.add('mt-3');
-                productDetails.style.marginBottom = '1rem';
-            }
-            
-            // Style du prix et de la référence
-            const priceBack = cardBack.querySelector('.product-price-back');
-            if (priceBack) {
-                priceBack.style.color = '#FF750F';
-                priceBack.style.fontSize = '1.6rem';
-                priceBack.style.fontWeight = 'bold';
-                priceBack.style.marginBottom = '0.75rem';
-            }
-            
-            // Réorganiser les boutons
-            const actionButtons = cardBack.querySelector('.action-buttons');
-            if (actionButtons) {
-                actionButtons.style.display = 'flex';
-                actionButtons.style.justifyContent = 'space-between';
-                actionButtons.style.marginTop = 'auto';
-                actionButtons.style.width = '100%';
-                
-                // Appliquer les styles responsifs en fonction de la taille de l'écran
-                if (window.innerWidth <= 768) {
-                    actionButtons.style.flexDirection = 'column';
-                    actionButtons.style.gap = '0.5rem';
-                }
-            }
-            
-            // Style du bouton retour
-            const backButton = cardBack.querySelector('.back-button');
-            if (backButton) {
-                backButton.style.backgroundColor = 'white';
-                backButton.style.color = '#FF750F';
-                backButton.style.boxShadow = '0 3px 10px rgba(255, 117, 15, 0.12)';
-                backButton.style.border = '1px solid rgba(255, 117, 15, 0.15)';
-                backButton.style.fontWeight = '500';
-                backButton.style.padding = '0.75rem 1rem';
-                backButton.style.transition = 'all 0.3s ease';
-                backButton.style.borderRadius = '0.5rem';
-                backButton.style.flex = '1';
-                backButton.style.margin = '0 0.5rem 0 0';
-                
-                // Appliquer les styles responsifs en fonction de la taille de l'écran
-                if (window.innerWidth <= 768) {
-                    backButton.style.width = '100%';
-                    backButton.style.margin = '0';
-                    backButton.style.padding = '0.6rem 1rem';
-                }
-            }
-            
-            // Style du bouton d'ajout au panier
-            const addToCartButton = cardBack.querySelector('.add-to-cart-button');
-            if (addToCartButton) {
-                addToCartButton.style.backgroundColor = '#FF750F';
-                addToCartButton.style.color = 'white';
-                addToCartButton.style.boxShadow = '0 4px 10px rgba(255, 117, 15, 0.25)';
-                addToCartButton.style.border = 'none';
-                addToCartButton.style.fontWeight = '500';
-                addToCartButton.style.padding = '0.75rem 1rem';
-                addToCartButton.style.transition = 'all 0.3s ease';
-                addToCartButton.style.borderRadius = '0.5rem';
-                addToCartButton.style.flex = '1';
-                addToCartButton.style.margin = '0 0 0 0.5rem';
-                
-                // Appliquer les styles responsifs en fonction de la taille de l'écran
-                if (window.innerWidth <= 768) {
-                    addToCartButton.style.width = '100%';
-                    addToCartButton.style.margin = '0';
-                    addToCartButton.style.padding = '0.6rem 1rem';
-                }
-            }
-        });
-        
-        // Appliquer les styles aux éléments de détail
-        document.querySelectorAll('.detail-item').forEach(item => {
-            item.style.display = 'flex';
-            item.style.alignItems = 'center';
-            item.style.backgroundColor = 'white';
-            item.style.padding = '0.75rem 1rem';
-            item.style.borderRadius = '0.5rem';
-            item.style.marginBottom = '0.75rem';
-            item.style.opacity = '1';
-            item.style.border = '1px solid rgba(255, 117, 15, 0.1)';
-            item.style.transition = 'all 0.3s ease';
-            item.style.boxShadow = '0 2px 5px rgba(255, 117, 15, 0.03)';
-            
-            // Appliquer les styles responsifs en fonction de la taille de l'écran
-            if (window.innerWidth <= 768) {
-                item.style.padding = '0.5rem 0.75rem';
-                item.style.marginBottom = '0.5rem';
-            }
-            if (window.innerWidth <= 640) {
-                item.style.padding = '0.4rem 0.5rem';
-                item.style.marginBottom = '0.4rem';
-            }
-            
-            // Style des icônes dans les éléments de détail
-            const detailIcon = item.querySelector('.detail-icon');
-            if (detailIcon) {
-                detailIcon.style.color = '#FF750F';
-            }
-            
-            // Style du texte dans les éléments de détail
-            const detailText = item.querySelector('.detail-text');
-            if (detailText) {
-                detailText.style.color = '#444';
-                detailText.style.fontSize = '0.95rem';
-                detailText.style.fontWeight = '500';
-                
-                // Appliquer les styles responsifs en fonction de la taille de l'écran
-                if (window.innerWidth <= 768) {
-                    detailText.style.fontSize = '0.85rem';
-                }
-                if (window.innerWidth <= 640) {
-                    detailText.style.fontSize = '0.8rem';
-                }
-                
-                // Vérifier si c'est l'élément de marque et appliquer un style spécial
-                if (detailText.textContent.includes('Marque:')) {
-                    item.style.backgroundColor = 'rgba(255, 117, 15, 0.05)';
-                    item.style.borderColor = 'rgba(255, 117, 15, 0.2)';
-                }
-            }
-        });
     }
+    
+    // Fonction pour détecter les changements de taille d'écran
+    function handleResize() {
+        applyCardStyles();
+    }
+    
+    // Ajouter un écouteur d'événement pour le redimensionnement de la fenêtre
+    window.addEventListener('resize', handleResize);
     
     // Appliquer les styles immédiatement
     applyCardStyles();
@@ -355,4 +749,47 @@ document.addEventListener('DOMContentLoaded', function() {
         
         observer.observe(productsContainer, { childList: true, subtree: true });
     }
+    
+    // Système de filtrage des produits côté client
+    function initializeFilters() {
+        const filterForm = document.getElementById('filter-form');
+        const priceFilter = document.getElementById('price_range');
+        const brandFilter = document.getElementById('brand');
+        const nameFilter = document.getElementById('name_filter');
+        const sortFilter = document.getElementById('sort');
+        const categoryFilter = document.getElementById('category');
+        const subcategoryFilter = document.getElementById('subcategory');
+        
+        // Si les éléments de filtrage n'existent pas, ne rien faire
+        if (!filterForm) {
+            return;
+        }
+        
+        // Initialiser le filtrage au chargement de la page
+        setTimeout(filterProducts, 100);
+        
+        // Ajouter des écouteurs d'événements pour le changement des filtres
+        if (priceFilter) priceFilter.addEventListener('change', filterProducts);
+        if (brandFilter) brandFilter.addEventListener('change', filterProducts);
+        if (sortFilter) sortFilter.addEventListener('change', filterProducts);
+        if (nameFilter) {
+            nameFilter.addEventListener('input', function() {
+                filterProducts();
+            });
+        }
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', function() {
+                // D'abord mettre à jour l'affichage des sous-catégories
+                toggleSubcategoryFilter();
+                // Ensuite appliquer les filtres
+                filterProducts();
+            });
+        }
+        if (subcategoryFilter) {
+            subcategoryFilter.addEventListener('change', filterProducts);
+        }
+    }
+    
+    // Initialiser les filtres
+    initializeFilters();
 });
